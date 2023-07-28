@@ -1,6 +1,8 @@
 ﻿using P4 = Perforce.P4;
 using git = LibGit2Sharp;
 using System.Diagnostics;
+using LibGit2Sharp;
+using Perforce.P4;
 
 // initialize the connection variables
 // note: this is a connection without using a password
@@ -25,7 +27,7 @@ bool didConnect = con.Connect(null);
 
 Console.WriteLine(con.Client.Root);
 
-P4.ChangesCmdOptions options = new P4.ChangesCmdOptions(P4.ChangesCmdFlags.LongDescription,
+P4.ChangesCmdOptions options = new P4.ChangesCmdOptions(P4.ChangesCmdFlags.LongDescription | P4.ChangesCmdFlags.ReverseOrder,
         null, -1, P4.ChangeListStatus.None, null);
 
 git.Repository gitrepo = new git.Repository(@"C:\midiplayer");
@@ -35,12 +37,19 @@ foreach (var branch in gitrepo.Branches)
 }
 
 // run the command against the current repository
-IList<P4.Changelist> changes = rep.GetChangelists(options, null);
+IList<P4.Changelist> changes = rep.GetChangelists(options,
+        new P4.FileSpec(new P4.DepotPath("//depot/midiplayer/..."), null, null, null));
 foreach (P4.Changelist changelist in changes)
 {
     P4.SyncFilesCmdOptions syncOpts = new P4.SyncFilesCmdOptions(P4.SyncFilesCmdFlags.Force);
     P4.FileSpec depotFile = new P4.FileSpec(new P4.DepotPath("//depot/midiplayer/..."), null, null, new P4.ChangelistIdVersion(changelist.Id));
     IList <P4.FileSpec> syncedFiles = rep.Connection.Client.SyncFiles(syncOpts, depotFile);
-    Console.WriteLine($"{changelist.Id} {changelist.ModifiedDate}");    
-    break;
+    Commands.Stage(gitrepo, "*");
+    try
+    {
+        gitrepo.Commit("from script", new Signature("Shane Morrison", "shanemor@gmail.com", new DateTimeOffset(changelist.ModifiedDate)),
+            new Signature("Shane Morrison", "shanemor@gmail.com", new DateTimeOffset(changelist.ModifiedDate)));
+    }
+    catch { }
+    Console.WriteLine($"{changelist.Id} {changelist.ModifiedDate}");
 }
