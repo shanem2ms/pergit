@@ -4,11 +4,13 @@ using System.Diagnostics;
 using LibGit2Sharp;
 using Perforce.P4;
 
+
+string subfolder_repo = "Vox";
 // initialize the connection variables
 // note: this is a connection without using a password
 string uri = "shanem.ddns.net:1666";
 string user = "shane";
-string ws_client = "gitmidiplayer";
+string ws_client = "amdwork";
 
 
 // define the server, repository and connection
@@ -25,24 +27,23 @@ con.Client.Name = ws_client;
 // connect to the server
 bool didConnect = con.Connect(null);
 
-Console.WriteLine(con.Client.Root);
+string repodir = Path.Combine(con.Client.Root, subfolder_repo);
+Console.WriteLine(repodir);
 
 P4.ChangesCmdOptions options = new P4.ChangesCmdOptions(P4.ChangesCmdFlags.LongDescription | P4.ChangesCmdFlags.ReverseOrder,
         null, -1, P4.ChangeListStatus.None, null);
 
-git.Repository gitrepo = new git.Repository(@"C:\midiplayer");
-foreach (var branch in gitrepo.Branches)
-{
-    Debug.WriteLine(branch);
-}
+//git.Repository.Init(repodir);
+git.Repository gitrepo = new git.Repository(repodir);
 
+LocalPath localPath = new LocalPath(repodir + "\\...");
 // run the command against the current repository
-IList<P4.Changelist> changes = rep.GetChangelists(options,
-        new P4.FileSpec(new P4.DepotPath("//depot/midiplayer/..."), null, null, null));
+IList<P4.Changelist> changes = rep.GetChangelists(options, new P4.FileSpec(null, null, localPath, null));
+bool first = true;
 foreach (P4.Changelist changelist in changes)
 {
-    P4.SyncFilesCmdOptions syncOpts = new P4.SyncFilesCmdOptions(P4.SyncFilesCmdFlags.Force);
-    P4.FileSpec depotFile = new P4.FileSpec(new P4.DepotPath("//depot/midiplayer/..."), null, null, new P4.ChangelistIdVersion(changelist.Id));
+    P4.SyncFilesCmdOptions syncOpts = new P4.SyncFilesCmdOptions(first ? P4.SyncFilesCmdFlags.Force : SyncFilesCmdFlags.None);
+    P4.FileSpec depotFile = new P4.FileSpec(null, null, localPath, new P4.ChangelistIdVersion(changelist.Id));
     IList <P4.FileSpec> syncedFiles = rep.Connection.Client.SyncFiles(syncOpts, depotFile);
     Commands.Stage(gitrepo, "*");
     try
@@ -51,5 +52,6 @@ foreach (P4.Changelist changelist in changes)
             new Signature("Shane Morrison", "shanemor@gmail.com", new DateTimeOffset(changelist.ModifiedDate)));
     }
     catch { }
+    first = false;
     Console.WriteLine($"{changelist.Id} {changelist.ModifiedDate}");
 }
